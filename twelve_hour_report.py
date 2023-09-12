@@ -14,11 +14,11 @@ def fetch_data_from_database():
         db = mariadb.connect(user='root', password='syswelliot', host='127.0.0.1', database='myhoepharma', port='3306')
         
         # Calculate the timestamp for 12 hours ago
-        twelve_hours_ago = datetime.datetime.now() - datetime.timedelta(hours=12)
+        twentyfour_hours_ago = datetime.datetime.now() - datetime.timedelta(hours=24)
         
         # SQL statement to get data from the last 2 days
-        sql_statement = "SELECT flow_rate, temp1, temp2, temp3, velocity, resistivity, conductivity, created_at " \
-                        f"FROM pharma_table WHERE created_at >= '{twelve_hours_ago}' ORDER BY created_at DESC"
+        sql_statement = "SELECT  velocity, temp1, temp2, temp3, resistivity, conductivity,toc_meter, created_at " \
+                        f"FROM pharma_table WHERE created_at >= '{twentyfour_hours_ago}' ORDER BY created_at DESC"
 
         cursor = db.cursor()
         cursor.execute(sql_statement)
@@ -38,43 +38,51 @@ def generate_pdf_report(data):
         return
 
     report_filename = f'/home/sed23pi001/Desktop/hoepharmawork/daily_report/report{datetime.datetime.now().strftime("%H%M")}.pdf'
-    doc = SimpleDocTemplate(report_filename, pagesize=letter)
+    doc = SimpleDocTemplate(report_filename,topMargine =0, pagesize=letter)
 
     # Define custom paragraph styles
+    top_style = ParagraphStyle('Title', fontSize=24, leading=30, alignment=1, textColor='black')
     title_style = ParagraphStyle('Title', fontSize=12, leading=14, alignment=0, textColor='black', spaceAfter=5)# f want to add spaceAfter=10
     variable_style = ParagraphStyle('Variable', fontSize=11, leading=14, textColor='black', spaceBefore=10)
     data_style = ParagraphStyle('Data', fontSize=11, leading=13, textColor='black')
+    page_style = ParagraphStyle('page', fontSize=9, leading=5, alignment=1, textColor='black', spaceBefore=70)
+    doneby_style = ParagraphStyle('page', fontSize=9, leading=5, alignment=0, textColor='black',spaceBefore =70)
+    checkby_style = ParagraphStyle('page', fontSize=9, leading=5, alignment=2, textColor='black',spaceBefore =70)
 
     
 
     # Dictionary to map each variable to its SI unit
     variable_units = {
-        'Flow Rate': 'L/min',
+        'Velocity': 'm/s',
         'Temp 1': '°C',
         'Temp 2': '°C',
         'Temp 3': '°C',
-        'Velocity': 'm/s',
         'Resistivity': 'Ohm/cm',
-        'Conductivity': 'mS/cm'
+        'Conductivity': 'mS/cm',
+        'TOC' : 'ppb'
     }
 
     report_elements = []
 
     # Calculate the timestamp for 12 hours ago
-    twelve_hours_ago = datetime.datetime.now() - datetime.timedelta(hours=12)
+    twentyfour_hours_ago = datetime.datetime.now() - datetime.timedelta(hours=24)
+
+    #add Hoe Pharma
+    hoe_pharma = f"HOE PHARMACEUTICALS SDN. BHD."
+    report_elements.append(Paragraph(hoe_pharma, top_style))
 
     # Add the report title
-    report_title = f"Daily Analysis for  {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} till {twelve_hours_ago.strftime('%Y-%m-%d %H:%M:%S')}"
+    report_title = f"Daily Analysis for  {twentyfour_hours_ago.strftime('%Y-%m-%d %H:%M:%S')} till {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     report_elements.append(Paragraph(report_title, title_style))
     # Add a horizontal line under the title
     report_elements.append(HRFlowable(width="100%", thickness=1, lineCap='round', color='black', spaceBefore=5, spaceAfter=10))
 
 
     # Add a spacer
-    report_elements.append(Spacer(1, 20))
+    report_elements.append(Spacer(1, 5))
 
     # Process data for each variable separately
-    variables = ['Flow Rate', 'Temp 1', 'Temp 2', 'Temp 3', 'Velocity', 'Resistivity', 'Conductivity']
+    variables = [ 'Velocity', 'Temp 1', 'Temp 2', 'Temp 3', 'Resistivity', 'Conductivity', 'TOC']
 
     for variable in variables:
         # Initialize values for each variable
@@ -82,23 +90,23 @@ def generate_pdf_report(data):
         min_timestamp = max_timestamp = None
 
         for row in data:
-            flow_rate, temp1, temp2, temp3, velocity, resistivity, conductivity, timestamp = row
+            velocity, temp1, temp2, temp3, resistivity, conductivity, toc_meter, timestamp = row
 
             # Determine the correct value based on the current variable
-            if variable == 'Flow Rate':
-                val = flow_rate
+            if variable == 'Velocity':
+                val = velocity
             elif variable == 'Temp 1':
                 val = temp1
             elif variable == 'Temp 2':
                 val = temp2
             elif variable == 'Temp 3':
                 val = temp3
-            elif variable == 'Velocity':
-                val = velocity
             elif variable == 'Resistivity':
                 val = resistivity
             elif variable == 'Conductivity':
                 val = conductivity
+            elif variable == 'TOC':
+                val = toc_meter
 
             # Update min, max, average, and the timestamps for min and max values
             if min_val is None or val < min_val:
@@ -139,7 +147,19 @@ def generate_pdf_report(data):
         report_elements.append(Paragraph(f"Average {doted_space}: {centered_space} {avg_val} {unit}", data_style))
 
         # Add a spacer
-        report_elements.append(Spacer(1, 20))
+        report_elements.append(Spacer(1, 5))
+
+#add signage
+    # done_by = f"Done by:_________________________"
+    # checked_by = f"Checked by:_________________________"
+    # report_elements.append(Paragraph(done_by, doneby_style))
+    # report_elements.append(Paragraph(checked_by, checkby_style))
+
+
+#add page 
+    page_number = f"page 1 of 1"
+    report_elements.append(Paragraph(page_number, page_style))
+
 
     # Build the PDF report
     doc.build(report_elements)
@@ -161,7 +181,7 @@ def main():
     #get the generate report filename 
     report_filename = f'/home/sed23pi001/Desktop/hoepharmawork/daily_report/report{datetime.datetime.now().strftime("%H%M")}.pdf'
     #printer name 
-    printer_name = 'hp477_printer'
+    printer_name = 'hoe_pharma_printer'
 
     print_report_to_printer(report_filename,printer_name)
 
@@ -173,5 +193,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 

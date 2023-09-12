@@ -43,13 +43,13 @@ def fetch_data_from_database(column_name):# Function to fetch data from database
         db = mariadb.connect(user='root', password='syswelliot', host='127.0.0.1', database='myhoepharma', port='3306')
 
         # Calculate the timestamp for 10 minutes ago
-        ten_minutes_ago = datetime.datetime.now() - datetime.timedelta(minutes=10)
+        sixty_minutes_ago = datetime.datetime.now() - datetime.timedelta(minutes=60)
 
         # SQL statement to get data for all variables in the last 10 minutes
         sql_statement = f"SELECT created_at, {column_name} FROM pharma_table WHERE created_at >= %s ORDER BY created_at ASC"
 
         cursor = db.cursor()
-        cursor.execute(sql_statement, (ten_minutes_ago,))
+        cursor.execute(sql_statement, (sixty_minutes_ago,))
         data = cursor.fetchall()
 
         cursor.close()
@@ -65,10 +65,16 @@ def generate_pdf_report(variable, variable_values, timestamp,data,variable_type,
     doc = SimpleDocTemplate(report_filename, pagesize=letter)
 
     # Define custom paragraph styles
+    top_style = ParagraphStyle('Title', fontSize=24, leading=20, alignment=1, textColor='black')
     title_style = ParagraphStyle('Title', fontSize=16, leading=20, alignment=1, textColor='navy')
     data_style = ParagraphStyle('Data', fontSize=11, leading=13, textColor='black')
 
     report_elements = []
+    #add Hoe Pharma
+    hoe_pharma = f"HOE PHARMACEUTICALS SDN. BHD."
+    report_elements.append(Paragraph(hoe_pharma, top_style))
+    report_elements.append(Spacer(1, 10))
+
 
     # Add the report title
     report_title = f"{variable.capitalize()} Alarm Report - {timestamp}"
@@ -78,7 +84,7 @@ def generate_pdf_report(variable, variable_values, timestamp,data,variable_type,
     report_elements.append(Spacer(1, 20))
 
     # Add variable-specific title
-    report_elements.append(Paragraph(f"--- {variable.capitalize()} Data for the past 10 minute ---", title_style))
+    report_elements.append(Paragraph(f"--- {variable.capitalize()} Data for the past 60 minute ---", title_style))
     report_elements.append(Spacer(1, 10))
 
     # Generate a plot graph for variable values
@@ -87,12 +93,12 @@ def generate_pdf_report(variable, variable_values, timestamp,data,variable_type,
     plt.plot(timestamps, variable_values, marker='o',markersize=2, linestyle='-')# set marker size to dotted smaller
     plt.xlabel("Timestamp")
     plt.ylabel(f"{variable.capitalize()} Value ({variable_to_si_unit.get(variable)})") # include SI unit
-    plt.title(f"{variable.capitalize()} Value Plot for the Last 10 Minutes")
+    plt.title(f"{variable.capitalize()} Value Plot for the Last 60 Minutes")
     plt.xticks(rotation=45)
     plt.grid()
 
     if trigger_value is not None:
-        plt.axhline(y=trigger_value, color='r', linestyle='-', label=f'Trigger Value: {trigger_value}')
+        plt.axhline(y=trigger_value, color='r', linestyle='--', label=f'Trigger Value: {trigger_value}')
 
     # plt.legend(fontsize='small', loc='center right', labels=[
     # f'{variable.capitalize()} {variable_values[-1]} ({variable_to_si_unit.get(variable)})',
@@ -189,3 +195,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
