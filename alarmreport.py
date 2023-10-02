@@ -46,7 +46,7 @@ def fetch_data_from_database(column_name):# Function to fetch data from database
         sixty_minutes_ago = datetime.datetime.now() - datetime.timedelta(minutes=60)
 
         # SQL statement to get data for all variables in the last 10 minutes
-        sql_statement = f"SELECT created_at, {column_name} FROM pharma_table WHERE created_at >= %s ORDER BY created_at ASC"
+        sql_statement = f"SELECT created_at, {column_name} FROM pharma_table_new WHERE created_at >= %s ORDER BY created_at ASC"
 
         cursor = db.cursor()
         cursor.execute(sql_statement, (sixty_minutes_ago,))
@@ -75,16 +75,23 @@ def generate_pdf_report(variable, variable_values, timestamp,data,variable_type,
     report_elements.append(Paragraph(hoe_pharma, top_style))
     report_elements.append(Spacer(1, 10))
 
+    # Convert the entire variable to uppercase
+    if variable == 'Ser_San':
+        variable_display = 'SANITIZATION'
+    else:
+        variable_display = variable.upper()
 
     # Add the report title
-    report_title = f"{variable.capitalize()} Alarm Report - {timestamp}"
+    # report_title = f"{variable.capitalize()} Alarm Report - {timestamp}"
+    report_title = f"{variable_display} Alarm Report - {timestamp}"
     report_elements.append(Paragraph(report_title, title_style))
 
     # Add a spacer
     report_elements.append(Spacer(1, 20))
 
     # Add variable-specific title
-    report_elements.append(Paragraph(f"--- {variable.capitalize()} Data for the past 60 minute ---", title_style))
+    # report_elements.append(Paragraph(f"--- {variable.capitalize()} Data for the past 60 minute ---", title_style))
+    report_elements.append(Paragraph(f"--- {variable_display} Data for the past 60 minutes ---", title_style))
     report_elements.append(Spacer(1, 10))
 
     # Generate a plot graph for variable values
@@ -92,8 +99,8 @@ def generate_pdf_report(variable, variable_values, timestamp,data,variable_type,
     plt.figure(figsize=(8, 4))
     plt.plot(timestamps, variable_values, marker='o',markersize=2, linestyle='-')# set marker size to dotted smaller
     plt.xlabel("Timestamp")
-    plt.ylabel(f"{variable.capitalize()} Value ({variable_to_si_unit.get(variable)})") # include SI unit
-    plt.title(f"{variable.capitalize()} Value Plot for the Last 60 Minutes")
+    plt.ylabel(f"{variable_display} Value ({variable_to_si_unit.get(variable)})") # include SI unit
+    plt.title(f"{variable_display} Value Plot for the Last 60 Minutes")
     plt.xticks(rotation=45)
     plt.grid()
 
@@ -195,4 +202,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

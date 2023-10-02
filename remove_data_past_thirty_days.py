@@ -12,7 +12,7 @@ def fetch_data_from_database():
         one_month_ago = datetime.now() - timedelta(days=30)
 
         # Delete records older than one month
-        delete_query = f"DELETE FROM pharma_table WHERE created_at < '{one_month_ago}'"
+        delete_query = f"DELETE FROM pharma_table_new WHERE created_at < '{one_month_ago}'"
         db_cursor = db.cursor()
         db_cursor.execute(delete_query)
         db.commit()

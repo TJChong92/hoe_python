@@ -1,12 +1,13 @@
 import mysql.connector as mariadb
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib import colors
+from reportlab.pdfgen import canvas
 import datetime
 import subprocess
 import os
 import re # Import the 're' module for regular expressions
+
 
 def fetch_data_from_database():
     try:
@@ -18,7 +19,7 @@ def fetch_data_from_database():
         
         # SQL statement to get data from the last 2 days
         sql_statement = "SELECT  velocity, temp1, temp2, temp3, resistivity, conductivity,toc_meter, created_at " \
-                        f"FROM pharma_table WHERE created_at >= '{twentyfour_hours_ago}' ORDER BY created_at DESC"
+                        f"FROM pharma_table_new WHERE created_at >= '{twentyfour_hours_ago}' ORDER BY created_at DESC"
 
         cursor = db.cursor()
         cursor.execute(sql_statement)
@@ -32,24 +33,32 @@ def fetch_data_from_database():
         print(f"Error connecting to MariaDB: {e}")
         return []
 
+def format_value(value, decimal_points):
+    try:
+        formatted_value = "{:.{}f}".format(float(value), decimal_points)
+        return formatted_value
+    except ValueError:
+        return value
+
 def generate_pdf_report(data):
     if not data:
         print("No data found. Report not generated.")
         return
 
     report_filename = f'/home/sed23pi001/Desktop/hoepharmawork/daily_report/report{datetime.datetime.now().strftime("%H%M")}.pdf'
-    doc = SimpleDocTemplate(report_filename,topMargine =0, pagesize=letter)
+
+    # Create a PDF document using canvas
+    c = canvas.Canvas(report_filename, pagesize=letter)
 
     # Define custom paragraph styles
-    top_style = ParagraphStyle('Title', fontSize=24, leading=30, alignment=1, textColor='black')
-    title_style = ParagraphStyle('Title', fontSize=12, leading=14, alignment=0, textColor='black', spaceAfter=5)# f want to add spaceAfter=10
-    variable_style = ParagraphStyle('Variable', fontSize=11, leading=14, textColor='black', spaceBefore=10)
-    data_style = ParagraphStyle('Data', fontSize=11, leading=13, textColor='black')
-    page_style = ParagraphStyle('page', fontSize=9, leading=5, alignment=1, textColor='black', spaceBefore=70)
-    doneby_style = ParagraphStyle('page', fontSize=9, leading=5, alignment=0, textColor='black',spaceBefore =70)
-    checkby_style = ParagraphStyle('page', fontSize=9, leading=5, alignment=2, textColor='black',spaceBefore =70)
-
-    
+    top_style = "Helvetica-Bold", 24
+    title_style = "Helvetica", 12
+    variable_style = "Helvetica", 11
+    data_style = "Helvetica", 11
+    page_style = "Helvetica", 9
+    doneby_style = "Helvetica", 9
+    checkby_style = "Helvetica", 9
+    pagewidth,_ = letter
 
     # Dictionary to map each variable to its SI unit
     variable_units = {
@@ -62,27 +71,32 @@ def generate_pdf_report(data):
         'TOC' : 'ppb'
     }
 
-    report_elements = []
-
     # Calculate the timestamp for 12 hours ago
     twentyfour_hours_ago = datetime.datetime.now() - datetime.timedelta(hours=24)
 
     #add Hoe Pharma
     hoe_pharma = f"HOE PHARMACEUTICALS SDN. BHD."
-    report_elements.append(Paragraph(hoe_pharma, top_style))
+    c.setFont(*top_style)
+    c.drawString(75, 750, hoe_pharma)
 
     # Add the report title
-    report_title = f"Daily Analysis for  {twentyfour_hours_ago.strftime('%Y-%m-%d %H:%M:%S')} till {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-    report_elements.append(Paragraph(report_title, title_style))
-    # Add a horizontal line under the title
-    report_elements.append(HRFlowable(width="100%", thickness=1, lineCap='round', color='black', spaceBefore=5, spaceAfter=10))
+    report_title = f"Daily Analysis for  {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} till {twentyfour_hours_ago.strftime('%Y-%m-%d %H:%M:%S')}"
+    c.setFont(*title_style)
+    c.drawString(50, 700, report_title)
 
+    # Add a horizontal line under the title
+    c.setStrokeColor(colors.black)
+    c.setLineWidth(1)
+    c.line(50, 690, 550, 690)
 
     # Add a spacer
-    report_elements.append(Spacer(1, 5))
+    c.setFont(*variable_style)
+    c.drawString(50, 670, " ")
 
     # Process data for each variable separately
     variables = [ 'Velocity', 'Temp 1', 'Temp 2', 'Temp 3', 'Resistivity', 'Conductivity', 'TOC']
+
+    vertical_position = 650  # Initial vertical position
 
     for variable in variables:
         # Initialize values for each variable
@@ -94,75 +108,78 @@ def generate_pdf_report(data):
 
             # Determine the correct value based on the current variable
             if variable == 'Velocity':
-                val = velocity
+                val = format_value(velocity, 2)  # Format to 2 decimal points
             elif variable == 'Temp 1':
-                val = temp1
+                val = format_value(temp1, 1)  # Format to 1 decimal point
             elif variable == 'Temp 2':
-                val = temp2
+                val = format_value(temp2, 1)  # Format to 1 decimal point
             elif variable == 'Temp 3':
-                val = temp3
+                val = format_value(temp3, 1)  # Format to 1 decimal point
             elif variable == 'Resistivity':
-                val = resistivity
+                val = format_value(resistivity, 1)  # Format to 1 decimal point
             elif variable == 'Conductivity':
-                val = conductivity
+                val = format_value(conductivity, 1)  # Format to 1 decimal point
             elif variable == 'TOC':
-                val = toc_meter
+                val = format_value(toc_meter, 1)  # Format to 1 decimal point
 
             # Update min, max, average, and the timestamps for min and max values
-            if min_val is None or val < min_val:
+            if min_val is None or float(val) < float(min_val):
                 min_val = val
                 min_timestamp = timestamp
-            if max_val is None or val > max_val:
+            if max_val is None or float(val) > float(max_val):
                 max_val = val
                 max_timestamp = timestamp
             if avg_val is None:
-                avg_val = val
+                avg_val = float(val)
             else:
-                avg_val = (avg_val + val) / 2
+                avg_val = (avg_val + float(val)) / 2
 
-            # Calculate the average value and format it to have 2 decimal points
+        # Calculate the average value and format it to have the desired decimal points
         if avg_val is not None:
-            avg_val = round(avg_val, 2)  # Round to 2 decimal points
+            avg_val = format_value(avg_val, 1)  # Format to 1 decimal point
 
-            
         unit = variable_units.get(variable, '')
+
+        # Add variable name and unit
+        c.setFont(*variable_style)
+        c.drawString(50, vertical_position, f"{variable} ({unit})")
         
-        #spacing for data
-        total_width = 80  # Total width of the fixed-width space (adjust as needed)
-        value_width = len(str(min_val)) + len(unit)
-        spaces_count = (total_width - value_width) // 2
-        doted_width = 10 // 2
-        tab_count = 10
+        # Add minimum value and timestamp
+        c.setFont(*data_style)
+        c.drawString(50, vertical_position - 15, f"Minimum: ")
+        c.drawString(250, vertical_position - 15, f"{min_val} {unit}")
+        c.drawString(450, vertical_position - 15, f" {min_timestamp}")
 
-        # Create the centered space
-        centered_space = '&nbsp;' * spaces_count 
-        tab_space = ' ' * tab_count
-        doted_space = '&nbsp' * doted_width
+        # Add maximum value and timestamp
+        c.drawString(50, vertical_position - 30, f"Maximum: ")
+        c.drawString(250, vertical_position - 30, f"{max_val} {unit}")
+        c.drawString(450, vertical_position - 30, f"{max_timestamp}")
 
-        # Add the processed data for this variable to the report using the data_style
-        report_elements.append(Paragraph(variable + f" ({unit})", variable_style))
-        # Add the line with centered minimum value
-        report_elements.append(Paragraph(f"Minimum {doted_space}: {centered_space} {min_val} {unit}{centered_space}{min_timestamp}", data_style))
-        report_elements.append(Paragraph(f"Maximum {doted_space}:{centered_space} {max_val} {unit}{centered_space}{max_timestamp}", data_style))  # Use the formatted text here
-        report_elements.append(Paragraph(f"Average {doted_space}: {centered_space} {avg_val} {unit}", data_style))
-
+        # Add average value
+        c.drawString(50, vertical_position - 45, f"Average: ")
+        c.drawString(250, vertical_position - 45, f"{min_val} {unit}")
+        
         # Add a spacer
-        report_elements.append(Spacer(1, 5))
+        vertical_position -= 70  # Move down 60 points
 
-#add signage
-    # done_by = f"Done by:_________________________"
-    # checked_by = f"Checked by:_________________________"
-    # report_elements.append(Paragraph(done_by, doneby_style))
-    # report_elements.append(Paragraph(checked_by, checkby_style))
+    # Add page number
+    c.setFont(*page_style)
+    c.drawString(250, 50, "Page 1 of 1")
 
+    # Add done by and checked by
+    done_by = f"Done by:_________________________"
+    checked_by = f"Checked by:_________________________"
+    c.setFont(*doneby_style)
+    c.drawString(50, 90, done_by)
+    c.setFont(*checkby_style)
+    c.drawString(pagewidth -230, 90, checked_by)
 
-#add page 
-    page_number = f"page 1 of 1"
-    report_elements.append(Paragraph(page_number, page_style))
+    signature_date_text = "(Signature & Date)"
+    c.drawString(105, 75, signature_date_text)  # Adjust vertical position
+    c.drawString(pagewidth - 160, 75, signature_date_text)
 
-
-    # Build the PDF report
-    doc.build(report_elements)
+    # Save the PDF
+    c.save()
 
     print(f"PDF report '{report_filename}' generated successfully.")
 
@@ -173,26 +190,19 @@ def print_report_to_printer(report_filename, printer_name):
         print(f"PDF report '{report_filename}' sent to the printer '{printer_name}' successfully.")
     except subprocess.CalledProcessError as e:
         print(f"Error printing the report: {e}")
-
+        
 def main():
     data = fetch_data_from_database()
     generate_pdf_report(data)
 
-    #get the generate report filename 
+    # # #get the generate report filename 
     report_filename = f'/home/sed23pi001/Desktop/hoepharmawork/daily_report/report{datetime.datetime.now().strftime("%H%M")}.pdf'
     #printer name 
     printer_name = 'hoe_pharma_printer'
 
     print_report_to_printer(report_filename,printer_name)
 
-# def main():
-#     data = fetch_data_from_database()
-#     generate_pdf_report(data)
-
-
 
 if __name__ == "__main__":
     main()
-
-
 
