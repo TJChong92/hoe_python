@@ -157,7 +157,7 @@ def generate_pdf_report(data):
 
         # Add average value
         c.drawString(50, vertical_position - 45, f"Average: ")
-        c.drawString(250, vertical_position - 45, f"{min_val} {unit}")
+        c.drawString(250, vertical_position - 45, f"{avg_val} {unit}")
         
         # Add a spacer
         vertical_position -= 70  # Move down 60 points
