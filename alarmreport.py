@@ -18,7 +18,7 @@ variable_to_column = {
     'velocity': 'velocity',
     'conductivity': 'conductivity',
     'resistivity': 'resistivity',
-    'toc_meter': 'toc_meter',
+    'toc': 'toc_meter',
     'SL': 'SL',
     'LL': 'LL',
     'Pressure_fail': 'Pressure_fail',
@@ -34,7 +34,7 @@ variable_to_si_unit = {
     'velocity': 'm/s',
     'conductivity': 'S/m',
     'resistivity': 'Ω/m',
-    'toc_meter': 'ppm'
+    'toc': 'ppm'
 }
 
 def fetch_data_from_database(column_name):# Function to fetch data from database
