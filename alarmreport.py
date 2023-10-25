@@ -21,7 +21,7 @@ variable_to_column = {
     'toc': 'toc_meter',
     'SL': 'SL',
     'LL': 'LL',
-    'Pressure_fail': 'Pressure_fail',
+    'Air_Pressure_fail': 'Pressure_fail',
     'Ser_San': 'Ser_San'
 }
 
@@ -32,15 +32,19 @@ variable_to_si_unit = {
     'temp2': '°C',
     'temp3': '°C',
     'velocity': 'm/s',
-    'conductivity': 'S/m',
-    'resistivity': 'Ω/m',
-    'toc': 'ppm'
+    'conductivity': 'µS/cm',
+    'resistivity': 'MΩ.cm',
+    'toc': 'ppb',
+    'SL': 'litres',
+    'LL': 'litres',
+    'Air_Pressure_fail': 'bar',
+    'Ser_San': '°C'
 }
 
-def fetch_data_from_database(column_name):# Function to fetch data from database
+def fetch_data_from_database(column_name,variable):# Function to fetch data from database
     try:
         # Connect to MariaDB using username and password
-        db = mariadb.connect(user='root', password='syswelliot', host='127.0.0.1', database='myhoepharma', port='3306')
+        db = mariadb.connect(user='root', password='syswelliot', host='127.0.0.1', database='myhoepharma', port='3306')#password=syswelliot
 
         # Calculate the timestamp for 10 minutes ago
         sixty_minutes_ago = datetime.datetime.now() - datetime.timedelta(minutes=60)
@@ -55,13 +59,23 @@ def fetch_data_from_database(column_name):# Function to fetch data from database
         cursor.close()
         db.close()
 
+        if variable in ['SL', 'LL', 'Ser_San', 'Air_Pressure_fail']:
+            # Apply value mapping to digital variables
+            value_mapping = {
+                'SL': {0: 1500, 1: 600},
+                'LL': {0: 3000, 1: 1500},
+                'Ser_San': {0: 75, 1: 80},
+                'Air_Pressure_fail': {0: 7.0, 1: 4.0}
+            }
+            data = [(row[0], value_mapping[variable].get(row[1], row[1])) for row in data]
+
         return data
     except mariadb.Error as e:
         print(f"Error connecting to MariaDB: {e}")
         return []
 
 def generate_pdf_report(variable, variable_values, timestamp,data,variable_type, trigger_value = None):# Function to generate pdf
-    report_filename = f'/home/sed23pi001/Desktop/hoepharmawork/pdf_history/{variable}_report.pdf'
+    report_filename = f'/home/sed23pi001/Desktop/hoepharmawork/pdf_history/{variable}_report.pdf'#f'/home/sed23pi001/Desktop/hoepharmawork/pdf_history/{variable}_report.pdf'
     doc = SimpleDocTemplate(report_filename, pagesize=letter)
 
     # Define custom paragraph styles
@@ -97,15 +111,37 @@ def generate_pdf_report(variable, variable_values, timestamp,data,variable_type,
     # Generate a plot graph for variable values
     timestamps = [row[0] for row in data]
     plt.figure(figsize=(8, 4))
-    plt.plot(timestamps, variable_values, marker='o',markersize=2, linestyle='-')# set marker size to dotted smaller
+    
+    if variable_type == 1:
+        plt.plot(timestamps, variable_values, marker='.', markersize=2, linestyle='-')
+        plt.ylabel(f"{variable_display} SI Value ({variable_to_si_unit.get(variable)})") #SI UNIT Value
+
+        if variable == 'SL':
+            new_y_min, new_y_max = 0, 1700  # Customize the desired range for 'SL'
+            plt.ylim(new_y_min, new_y_max)
+        elif variable == 'LL':
+            new_y_min, new_y_max = 0, 4000  # Customize the desired range for 'LL'
+            plt.ylim(new_y_min, new_y_max)
+        elif variable == 'Air_Pressure_fail':
+            new_y_min, new_y_max = 0, 9  # Customize the desired range for 'AIR PRESSURE'
+            plt.ylim(new_y_min, new_y_max)
+        elif variable == 'Ser_San':
+            new_y_min, new_y_max = 60, 90  # Customize the desired range for 'SANITIZATION'
+            plt.ylim(new_y_min, new_y_max)
+
+
+    else:
+        plt.plot(timestamps, variable_values, marker='.',markersize=2, linestyle='-')# set marker size to dotted smaller
+        plt.ylabel(f"{variable_display} Value ({variable_to_si_unit.get(variable)})")# include SI unit
+   
     plt.xlabel("Timestamp")
-    plt.ylabel(f"{variable_display} Value ({variable_to_si_unit.get(variable)})") # include SI unit
     plt.title(f"{variable_display} Value Plot for the Last 60 Minutes")
     plt.xticks(rotation=45)
-    plt.grid()
+    plt.grid(False)
 
     if trigger_value is not None:
-        plt.axhline(y=trigger_value, color='r', linestyle='--', label=f'Trigger Value: {trigger_value}')
+        if variable_type == 2:
+            plt.axhline(y=trigger_value, color='r', linestyle='--', label=f'Trigger Value: {trigger_value}')
 
     # plt.legend(fontsize='small', loc='center right', labels=[
     # f'{variable.capitalize()} {variable_values[-1]} ({variable_to_si_unit.get(variable)})',
@@ -132,8 +168,8 @@ def generate_pdf_report(variable, variable_values, timestamp,data,variable_type,
         report_elements.append(Paragraph(f"Last Values: {variable_values[-1]} {variable_to_si_unit.get(variable)}", data_style))
 
     elif variable_type == 1:  # Digital variable
-        report_elements.append(Paragraph(f"Triggered Values: 1", data_style))
-        report_elements.append(Paragraph(f"Last Values: {variable_values[-1]}", data_style))
+        report_elements.append(Paragraph(f"Triggered Values: {trigger_value} {variable_to_si_unit.get(variable)}", data_style))
+        report_elements.append(Paragraph(f"Last Values: {variable_values[-1]} {variable_to_si_unit.get(variable)}", data_style))
 
     report_elements.append(Spacer(1, 20))
 
@@ -167,7 +203,7 @@ def main():
             return
 
     # Fetch data from the database
-        data = fetch_data_from_database(column_name)
+        data = fetch_data_from_database(column_name,variable)
 
         if data:
             variable_values = [row[1] for row in data]
@@ -189,14 +225,14 @@ def main():
             return
 
         # Fetch data from the database
-        data = fetch_data_from_database(column_name)
+        data = fetch_data_from_database(column_name,variable)
 
         if data:
             variable_values = [row[1] for row in data]
             timestamp = data[-1][0] if data else "N/A"
 
             # Generate the PDF report for digital variables
-            generate_pdf_report(variable, variable_values, timestamp, data, variable_type)
+            generate_pdf_report(variable, variable_values, timestamp, data, variable_type,trigger_value)
     else:
         print("Invalid variable type chosen.")
 
